@@ -1,3 +1,8 @@
+<p align="center">
+  <a href="README.md">English</a> |
+  <a href="docs/translations/zh/README.md">简体中文</a>
+</p>
+
 <h1 align="center"><b>LocalLens</b></h1>
 
 <p align="center">
