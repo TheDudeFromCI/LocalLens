@@ -1,127 +1,107 @@
-## Local Lens
+<h1 align="center"><b>LocalLens</b></h1>
 
-Web application for finding images in your local directories using natural language queries or reverse image search. Powered by vision embedding models (e.g., CLIP/SigLIP 2).
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/meangrinch/LocalLens?label=Release&labelColor=181717&color=0877d2" />
+  <img src="https://img.shields.io/github/downloads/meangrinch/LocalLens/total?label=Downloads&labelColor=181717&color=0877d2" />
+  <img src="https://img.shields.io/github/license/meangrinch/LocalLens?labelColor=181717&color=2ea44f" />
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white&labelColor=181717" />
+</p>
 
-<img src="docs/images/example_screenshot.png" alt="Screenshot" width="1000">
+<div align="center">
+An offline visual search engine for local image and video collections. Indexes directories into ChromaDB using vision embedding models to enable natural language queries and reverse image search, with added duplicate detection.
+</div>
 
-## Table of Contents
+<br/>
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Install](#install)
-- [Usage](#usage)
-- [Documentation](#documentation)
-- [Updating](#updating)
-- [License & Credits](#license--credits)
+<div align="center">
+  <img src="docs/images/example_screenshot.png" alt="LocalLens UI Screenshot" width="1000" />
+</div>
+
+---
+
+## Quick Setup
+
+### 1. Download
+
+- **Portable Package (Recommended):** Download the portable build from [Releases](https://github.com/meangrinch/LocalLens/releases/tag/portable).
+  - Windows: No requirements.
+  - Linux / macOS: Requires Python 3.10+ and Git.
+- **From Source:**
+  ```bash
+  git clone https://github.com/meangrinch/LocalLens.git
+  cd LocalLens
+  python -m venv venv
+  .\venv\Scripts\activate # or source venv/bin/activate (Linux/macOS)
+  pip install torch==2.12.0+cu130 torchvision==0.27.0+cu130 --extra-index-url https://download.pytorch.org/whl/cu130 # or pip install torch==2.12.0 torchvision==0.27.0 (macOS)
+  pip install -r requirements.txt
+  ```
+
+*For additional information, see [Installation](docs/INSTALLATION.md).*
+
+### 2. Index
+
+- **Web UI:** In Database Management, enter a directory path and click Add Folder.
+- **CLI:**
+  ```bash
+  python build_db.py --model_path "google/siglip2-so400m-patch16-512" --db_path "img_db/siglip2_so400m" --add "path/to/images"
+  ```
+- **Sync Changes:** Click Update/Sync in the Web UI, or pass `--update` via CLI to rescan indexed folders for additions or deletions.
+
+### 3. Search
+
+- **Text Search:** Enter a description (e.g., "an orange and black butterfly") to retrieve matching media ranked by similarity.
+- **Reverse Image Search:** Upload an image to find visually similar files, or combine text and image inputs to refine results.
+- **Find Duplicates:** In the Find Duplicates tab, select an indexed folder and set a similarity threshold to surface duplicate pairs.
+- **Access Restriction (Optional):** By default, the Gradio gallery can display images from any indexed directory. Set `LOCALLENS_ALLOWED_PATHS` in your environment to restrict accessible directories.
+
+---
 
 ## Features
 
-- **Indexing**: Index and update local image directories recursively using ChromaDB
-- **Search**: Find relevant images or videos with text, image, or combined text + image queries
-- **Reverse Search**: Upload an image to retrieve visually similar matches
-- **Duplicates**: Retrieve duplicate or highly similar image pairs from indexed directories
-- **Results**: Display matches in a confidence-ordered gallery
-- **Interface**: Web UI (Gradio)
+- **Indexing**: Recursive directory indexing and incremental sync (ChromaDB)
+- **Search**: Natural language text, image, and combined text + image queries
+- **Reverse Search**: Find visually similar media from an uploaded image
+- **Duplicates**: Locate duplicate and near-duplicate image pairs by similarity threshold
+- **Models**: Vision embedding backbones (SigLIP 2, MetaCLIP, DFN-CLIP, CLIP)
+- **Formats**: Image and video support (jpg, png, webp, mp4, mkv, etc.)
+- **Interfaces**: Web UI (Gradio) and CLI
 
-## Requirements
-
-- Python 3.10+
-- PyTorch (CPU, CUDA, ROCm, XPU, MPS)
-
-## Install
-
-### Portable Package (Recommended)
-
-Download the standalone zip from the releases page: [Portable Build](https://github.com/meangrinch/LocalLens/releases/tag/portable)
-
-**Requirements:**
-
-- **Windows:** Bundled Python/Git included; no additional requirements
-- **Linux/macOS:** Python 3.10+ and Git must be installed on your system
-
-> [!TIP]
-> In the event that you need to transfer to a fresh portable package:
->
-> - You can safely move the `img_db` directory to the new portable package
-> - You might be able to move the `runtime` directory over, assuming the same setup configuration is wanted
-
-### Manual install
-
-1. Clone and enter the repo
-
-```bash
-git clone https://github.com/meangrinch/LocalLens.git
-cd LocalLens
-```
-
-2. Create and activate a virtual environment (recommended)
-
-```bash
-python -m venv venv
-# Windows PowerShell/CMD
-.\venv\Scripts\activate
-# Linux/macOS
-source venv/bin/activate
-```
-
-3. Install PyTorch (see: [PyTorch Install](https://pytorch.org/get-started/locally/))
-
-```bash
-# Example (CUDA 13.0)
-pip install torch==2.12.0+cu130 torchvision==0.27.0+cu130 --extra-index-url https://download.pytorch.org/whl/cu130
-# Example (ROCm 7.1)
-pip install torch==2.12.0+rocm7.1 torchvision==0.27.0+rocm7.1 --extra-index-url https://download.pytorch.org/whl/rocm7.1
-# Example (XPU)
-pip install torch==2.12.0+xpu torchvision==0.27.0+xpu --extra-index-url https://download.pytorch.org/whl/xpu
-# Example (MPS/CPU)
-pip install torch==2.12.0 torchvision==0.27.0
-```
-
-4. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-## Usage
-
-### Web UI (Gradio)
-
-1. Select a model (automatically downloads to hugging face cache `~/.cache/huggingface/hub`)
-2. Add image directories to your Chroma database (via the "Database Management" dropdown in the UI, or via CLI)
-3. Enter your search query (e.g., "an orange and black butterfly") and/or upload an image (for reverse image search/combined text + image search)
-4. The application will display the results in order of confidence
-5. Update/sync indexed directories if necessary
-
-### Find duplicates
-
-Click "Find Duplicates" in the UI with a specified indexed image directory to return similar matching images pairs.
-
-### Local file access
-
-The Gradio gallery is launched with broad local file access by default so it can display image paths from any indexed folder. To restrict this, set `LOCALLENS_ALLOWED_PATHS` to an OS path-list before launching the app.
+---
 
 ## Documentation
 
 - [Hardware Requirements](docs/HARDWARE_REQUIREMENTS.md)
+- [Installation](docs/INSTALLATION.md)
 
-## Updating
+---
 
-### Portable Package
+## Support the Project
 
-- Run `update.bat` (Windows) or `./update.sh` (Linux/macOS) from the portable package root
+LocalLens is open-source and free. If it saves you time finding photos or cleaning up duplicate images, consider supporting its development!
 
-### Manual Install
+<p align="center">
+  <a href="https://ko-fi.com/grinnch" target="_blank">
+    <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Support on Ko-fi" height="38"/>
+  </a>
+</p>
 
-From the repo root:
+---
 
-```bash
-git pull
-pip install -r requirements.txt  # Or activate venv first if present
-```
-
-## License & credits
+## License & Credits
 
 - License: Apache-2.0 (see [LICENSE](LICENSE))
 - Author: [grinnch](https://github.com/meangrinch)
-- Inspired by [Where's My Pic?](https://github.com/Om-Alve/Wheres_My_Pic) by [@Om-Alve](https://github.com/Om-Alve)
+- Inspired by: [Where's My Pic?](https://github.com/Om-Alve/Wheres_My_Pic) by [Om-Alve](https://github.com/Om-Alve)
+
+<details>
+<summary><b>ML Models and Libraries</b></summary>
+
+- SigLIP 2 SO400M: [Google](https://huggingface.co/google/siglip2-so400m-patch16-512)
+- SigLIP 2 Giant: [Google](https://huggingface.co/google/siglip2-giant-opt-patch16-384)
+- DFN5B CLIP ViT-H-14: [Apple](https://huggingface.co/apple/DFN5B-CLIP-ViT-H-14-378)
+- MetaCLIP ViT-H-14: [Meta AI](https://huggingface.co/facebook/metaclip-h14-fullcc2.5b)
+- LAION-CLIP ViT-H-14: [LAION](https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K)
+- OpenAI CLIP ViT-L-14: [OpenAI](https://huggingface.co/openai/clip-vit-large-patch14)
+- ChromaDB: [Chroma](https://github.com/chroma-core/chroma)
+
+</details>
