@@ -1193,7 +1193,7 @@ function() {
         }
         const newContent = document.createElement('div');
         newContent.className = 'locallens-credits'; // Add a class for identification
-        newContent.innerHTML = 'Made by <a href="https://github.com/meangrinch">grinnch</a> with ❤️'; // credits
+        newContent.innerHTML = 'made by <a href="https://github.com/meangrinch">grinnch</a> with ❤️'; // credits
 
         newContent.style.textAlign = 'center';
         newContent.style.paddingTop = '50px';
