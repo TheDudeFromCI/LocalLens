@@ -1208,11 +1208,6 @@ def handle_delete_image_button_click(
 
         stored_record = next(iter(records_by_key.values()))
         stored_image_path = stored_record.path
-        media_ids = [record.media_id for record in records_by_key.values()]
-        if media_ids:
-            active_chroma_client_state_val.get_collection("images").delete(ids=media_ids)
-            store.delete_media_ids(media_ids)
-
         if os.path.exists(stored_image_path):
             if not os.path.isfile(stored_image_path):
                 gr.Warning("Selected path is not a file.")
@@ -1221,6 +1216,11 @@ def handle_delete_image_button_click(
             gr.Info(f"Deleted image: {os.path.basename(stored_image_path)}")
         else:
             gr.Warning("Image file was already missing; removed indexed reference if present.")
+
+        media_ids = [record.media_id for record in records_by_key.values()]
+        if media_ids:
+            active_chroma_client_state_val.get_collection("images").delete(ids=media_ids)
+            store.delete_media_ids(media_ids)
 
         remaining_images = [
             entry
