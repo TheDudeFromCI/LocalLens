@@ -1160,6 +1160,80 @@ def clear_search_and_gallery():
     return "", None, []
 
 
+def _extract_selected_image_path(selected_value) -> str:
+    """Extract a filesystem path from a gallery selection payload."""
+    if isinstance(selected_value, str):
+        return selected_value
+    if isinstance(selected_value, (list, tuple)) and selected_value:
+        first_item = selected_value[0]
+        return first_item if isinstance(first_item, str) else ""
+    if isinstance(selected_value, dict):
+        image_data = selected_value.get("image")
+        if isinstance(image_data, dict):
+            path = image_data.get("path")
+            if isinstance(path, str):
+                return path
+        image_path = selected_value.get("path")
+        if isinstance(image_path, str):
+            return image_path
+    return ""
+
+
+def handle_delete_image_button_click(
+    selected_image_path: str,
+    gallery_images: list,
+    current_db_path: str,
+    active_chroma_client_state_val,
+):
+    """Deletes the selected local file and removes matching index records."""
+    image_path = (selected_image_path or "").strip()
+    if not image_path:
+        gr.Warning("Could not determine the selected image path.")
+        return gallery_images or [], ""
+
+    if not current_db_path:
+        gr.Warning("No active model or DB path. Please select a model first.")
+        return gallery_images or [], ""
+
+    if not active_chroma_client_state_val:
+        gr.Warning("ChromaDB client not loaded. Please re-select a model.")
+        return gallery_images or [], ""
+
+    try:
+        store = IndexStore(current_db_path)
+        records_by_key = store.get_media_by_paths([image_path])
+        if not records_by_key:
+            gr.Warning("Selected image is not part of the active index.")
+            return gallery_images or [], ""
+
+        stored_record = next(iter(records_by_key.values()))
+        stored_image_path = stored_record.path
+        if os.path.exists(stored_image_path):
+            if not os.path.isfile(stored_image_path):
+                gr.Warning("Selected path is not a file.")
+                return gallery_images or [], ""
+            os.remove(stored_image_path)
+            gr.Info(f"Deleted image: {os.path.basename(stored_image_path)}")
+        else:
+            gr.Warning("Image file was already missing; removed indexed reference if present.")
+
+        media_ids = [record.media_id for record in records_by_key.values()]
+        if media_ids:
+            active_chroma_client_state_val.get_collection("images").delete(ids=media_ids)
+            store.delete_media_ids(media_ids)
+
+        remaining_images = [
+            entry
+            for entry in (gallery_images or [])
+            if _extract_selected_image_path(entry) != stored_image_path
+        ]
+        return remaining_images, ""
+    except Exception as e:
+        print(f"Error deleting image '{image_path}': {e}")
+        gr.Error(f"Failed to delete image '{os.path.basename(image_path)}': {e}")
+        return gallery_images or [], ""
+
+
 def get_allowed_gallery_paths() -> list[str]:
     """Returns paths Gradio may serve; broad access remains the default."""
     configured_paths = os.environ.get("LOCALLENS_ALLOWED_PATHS")
@@ -1181,10 +1255,91 @@ css_gallary = """
 #gallery .caption-label {
     display: none !important;
 }
+
+.locallens-delete-image-btn {
+    border: 1px solid var(--border-color-primary, #666);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 8px;
+}
 """
 
 js_credits = """
 function() {
+    const locatePreviewActionBar = () => {
+        const button = document.querySelector(
+            'button[aria-label*="Download"], button[aria-label*="Maximize"], button[aria-label*="Close"], button[title*="Download"], button[title*="Maximize"], button[title*="Close"]'
+        );
+        return button ? button.parentElement : null;
+    };
+
+    const extractPathFromPreviewImage = () => {
+        const dialog = document.querySelector('div[role="dialog"]');
+        const image = dialog ? dialog.querySelector('img[src]') : null;
+        if (!image || !image.src) {
+            return '';
+        }
+
+        try {
+            const srcUrl = new URL(image.src, window.location.href);
+            const fromParam = srcUrl.searchParams.get('file');
+            if (fromParam) {
+                return fromParam
+            }
+
+            const match = srcUrl.href.match(/\\/gradio_api\\/file=(.+?)(?:\\?|$)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        } catch (e) {
+            return '';
+        }
+    };
+
+    const injectDeletePreviewButton = () => {
+        const actionBar = locatePreviewActionBar();
+        if (!actionBar || actionBar.querySelector('.locallens-delete-image-btn')) {
+            return;
+        }
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'locallens-delete-image-btn';
+        deleteButton.textContent = '🗑️';
+        deleteButton.title = 'Delete local file';
+
+        deleteButton.addEventListener('click', () => {
+            const imagePath = extractPathFromPreviewImage();
+            if (!imagePath) {
+                alert('Could not determine image path.');
+                return;
+            }
+
+            if (!confirm(`Delete this local file?\\n\\n${imagePath}`)) {
+                return;
+            }
+
+            const pathInput = document.querySelector('#selected_image_path textarea, #selected_image_path input');
+            const hiddenDeleteButton = document.querySelector('#confirm_delete_image_button button');
+            if (!pathInput || !hiddenDeleteButton) {
+                alert('Delete action is not ready yet.');
+                return;
+            }
+
+            pathInput.value = imagePath;
+            pathInput.dispatchEvent(new Event('input', { bubbles: true }));
+            hiddenDeleteButton.click();
+        });
+
+        actionBar.appendChild(deleteButton);
+    };
+
+    const deleteButtonObserver = new MutationObserver(() => injectDeletePreviewButton());
+    deleteButtonObserver.observe(document.body, { childList: true, subtree: true });
+    injectDeletePreviewButton();
+
     const footer = document.querySelector('footer');
     if (footer) {
         // Check if credits already exist
@@ -1368,6 +1523,16 @@ if __name__ == "__main__":
                     show_label=True,
                     elem_id="gallery",
                 )
+                selected_image_path_textbox = gr.Textbox(
+                    value="",
+                    visible=False,
+                    elem_id="selected_image_path",
+                )
+                confirm_delete_image_button = gr.Button(
+                    "Delete Selected Image",
+                    visible=False,
+                    elem_id="confirm_delete_image_button",
+                )
 
         load_outputs = [
             active_model_path_state,
@@ -1542,6 +1707,18 @@ if __name__ == "__main__":
             fn=clear_search_and_gallery,
             inputs=[],
             outputs=[query_textbox, query_image_input, results_gallery],
+        )
+
+        confirm_delete_image_button.click(
+            fn=handle_delete_image_button_click,
+            inputs=[
+                selected_image_path_textbox,
+                results_gallery,
+                active_db_path_state,
+                chroma_client_state,
+            ],
+            outputs=[results_gallery, selected_image_path_textbox],
+            show_progress="hidden",
         )
 
     app.launch(inbrowser=True, allowed_paths=get_allowed_gallery_paths())
