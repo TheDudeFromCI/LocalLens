@@ -1288,7 +1288,7 @@ function() {
             const srcUrl = new URL(image.src, window.location.href);
             const fromParam = srcUrl.searchParams.get('file');
             if (fromParam) {
-                return decodeURIComponent(fromParam);
+                return fromParam
             }
 
             const match = srcUrl.href.match(/\\/gradio_api\\/file=(.+?)(?:\\?|$)/);
