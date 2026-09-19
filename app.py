@@ -1202,24 +1202,30 @@ def handle_delete_image_button_click(
     try:
         store = IndexStore(current_db_path)
         records_by_key = store.get_media_by_paths([image_path])
+        if not records_by_key:
+            gr.Warning("Selected image is not part of the active index.")
+            return gallery_images or [], ""
+
+        stored_record = next(iter(records_by_key.values()))
+        stored_image_path = stored_record.path
         media_ids = [record.media_id for record in records_by_key.values()]
         if media_ids:
             active_chroma_client_state_val.get_collection("images").delete(ids=media_ids)
             store.delete_media_ids(media_ids)
 
-        if os.path.exists(image_path):
-            if not os.path.isfile(image_path):
+        if os.path.exists(stored_image_path):
+            if not os.path.isfile(stored_image_path):
                 gr.Warning("Selected path is not a file.")
                 return gallery_images or [], ""
-            os.remove(image_path)
-            gr.Info(f"Deleted image: {os.path.basename(image_path)}")
+            os.remove(stored_image_path)
+            gr.Info(f"Deleted image: {os.path.basename(stored_image_path)}")
         else:
             gr.Warning("Image file was already missing; removed indexed reference if present.")
 
         remaining_images = [
             entry
             for entry in (gallery_images or [])
-            if _extract_selected_image_path(entry) != image_path
+            if _extract_selected_image_path(entry) != stored_image_path
         ]
         return remaining_images, ""
     except Exception as e:
